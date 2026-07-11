@@ -1,77 +1,444 @@
 # Agentic Workflow System
 
-Multi-agent pipeline matching this architecture:
+An autonomous **Multi-Agent AI Workflow System** built with **FastAPI**, **Python**, **SQLite**, and a **locally hosted Llama 3.2 model using Ollama**. The system transforms a high-level user goal into a structured business proposal through intelligent planning, workflow orchestration, **Human-in-the-Loop (HITL)** approvals, quality evaluation, iterative rewriting, and Microsoft Word document generation.
 
-```
-User → POST /plan → Planner Agent → Task Graph (DAG) → Human Approval Required
-     → POST /execute → Workflow Orchestrator
-         → [Research Agent | Tool Router | Memory Agent] (parallel)
-         → Writer Agent → Draft Document → Human Final Approval
-     → POST /generate → Reflection Agent → Self Evaluation Agent
-         → Quality Score > 90? → No → Rewrite Agent → (retry loop)
-                              → Yes → DOCX Generator
-     → SQLite Memory + Chroma Semantic Memory (persisted throughout)
-     → Audit Logging (every step)
+---
+
+# Architecture
+
+```text
+                              User
+                                │
+                                ▼
+                         POST /plan
+                                │
+                                ▼
+                         Planner Agent
+                                │
+                                ▼
+                       Task Graph (DAG)
+                                │
+                                ▼
+                 Human Approval Required
+                                │
+                                ▼
+                  POST /approve/{run_id}
+                                │
+                                ▼
+                   Workflow Orchestrator
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          ▼                     ▼                     ▼
+   Research Agent         Tool Router         Memory Agent
+          │                     │                     │
+          └─────────────────────┼─────────────────────┘
+                                ▼
+                          Writer Agent
+                                │
+                                ▼
+                         Draft Proposal
+                                │
+                                ▼
+                  Human Final Approval
+                                │
+                                ▼
+             POST /approve-final/{run_id}
+                                │
+                                ▼
+                 POST /generate/{run_id}
+                                │
+                                ▼
+                     Reflection Agent
+                                │
+                                ▼
+                  Self Evaluation Agent
+                                │
+                                ▼
+                        Quality Score
+                                │
+                Score ≥ Quality Threshold ?
+                      │                   │
+                     Yes                  No
+                      │                   │
+                      ▼                   ▼
+               DOCX Generator      Rewrite Agent
+                                          │
+                                          ▼
+                                   Reflection Loop
+                                          │
+                                          └── Retry Until Threshold
+                                                or Maximum Retries
+
+            SQLite Memory + Structured Audit Logging
 ```
 
-## Project Structure
+---
 
-```
+# Features
+
+* Multi-Agent AI architecture
+* Human-in-the-Loop (HITL) workflow
+* Planner Agent for task planning
+* Directed Acyclic Graph (DAG) based workflow generation
+* Dependency-aware task execution
+* Topological sorting for execution scheduling
+* Research Agent
+* Tool Router
+* Memory Agent
+* Writer Agent
+* Reflection Agent
+* Self Evaluation Agent
+* Rewrite Agent
+* Manual approval before workflow execution
+* Manual approval before final document generation
+* Automatic proposal generation
+* Reflection-based quality improvement loop
+* Configurable quality threshold
+* SQLite-based workflow memory
+* Structured audit logging
+* Microsoft Word (.docx) generation
+* RESTful APIs using FastAPI
+* Local LLM inference using Ollama (Llama 3.2)
+
+---
+
+# Technology Stack
+
+* Python
+* FastAPI
+* Pydantic
+* SQLite
+* Requests
+* python-docx
+* Ollama
+* Llama 3.2
+* Uvicorn
+
+---
+
+# Project Structure
+
+```text
 agentic-workflow/
-├── README.md
-├── requirements.txt
-├── .env.example
-├── main.py                        # FastAPI app entrypoint
-├── config.py                      # Settings (env vars, thresholds, model names)
-├── models/
-│   └── schemas.py                 # Pydantic request/response + TaskGraph models
+│
 ├── agents/
-│   ├── base.py                    # BaseAgent (shared LLM call + logging)
-│   ├── planner_agent.py           # Builds the Task Graph (DAG)
-│   ├── research_agent.py          # Gathers info for a task node
-│   ├── memory_agent.py            # Reads/writes long-term memory
-│   ├── writer_agent.py            # Produces the draft document
-│   ├── reflection_agent.py        # Critiques the draft
-│   ├── self_eval_agent.py         # Scores quality 0-100
-│   └── rewrite_agent.py           # Rewrites based on critique
-├── orchestrator/
-│   ├── task_graph.py              # DAG data structure + topological execution order
-│   ├── tool_router.py             # Routes tool calls to the right handler
-│   └── workflow_orchestrator.py   # Runs Research/Tools/Memory, then Writer
-├── memory/
-│   ├── sqlite_memory.py           # Structured state: runs, tasks, approvals, scores
-│             
-├── generators/
-│   └── docx_generator.py          # Final .docx export
+│   ├── base.py
+│   ├── planner_agent.py
+│   ├── research_agent.py
+│   ├── memory_agent.py
+│   ├── writer_agent.py
+│   ├── reflection_agent.py
+│   ├── self_eval_agent.py
+│   └── rewrite_agent.py
+│
 ├── api/
-│   └── routes.py                  # /plan, /execute, /generate endpoints
+│   └── routes.py
+│
+├── generators/
+│   └── docx_generator.py
+│
+├── memory/
+│   └── sqlite_memory.py
+│
+├── models/
+│   └── schemas.py
+│
+├── orchestrator/
+│   ├── reflection_loop.py
+│   ├── task_graph.py
+│   ├── tool_router.py
+│   └── workflow_orchestrator.py
+│
 ├── utils/
-│   ├── llm_client.py              # Thin wrapper around the Anthropic API
-│   └── logger.py                  # Structured audit logger → SQLite + file
-└── data/                          # runtime: memory.db,  audit.log
+│   ├── llm_client.py
+│   └── logger.py
+│
+├── data/
+│   ├── memory.db
+│   ├── audit.log
+│   └── generated_docs/
+│
+├── config.py
+├── main.py
+├── requirements.txt
+├── README.md
+└── .env.example
 ```
 
-## Setup
+---
+
+# Workflow
+
+## Step 1 – Plan Generation
+
+**Endpoint**
+
+```http
+POST /plan
+```
+
+The Planner Agent:
+
+* Accepts the user's goal
+* Generates a Task Graph (DAG)
+* Stores workflow information in SQLite
+* Sets the workflow status to **Pending Approval**
+
+---
+
+## Step 2 – Human Approval
+
+**Endpoint**
+
+```http
+POST /approve/{run_id}
+```
+
+A human reviews the generated execution plan.
+
+If approved:
+
+* Workflow status changes to **Approved**
+* Workflow execution is enabled
+
+---
+
+## Step 3 – Execute Workflow
+
+**Endpoint**
+
+```http
+POST /execute/{run_id}
+```
+
+The Workflow Orchestrator:
+
+* Computes execution waves using Topological Sorting
+* Executes tasks according to dependencies
+* Dispatches tasks to:
+
+  * Research Agent
+  * Tool Router
+  * Memory Agent
+* Stores intermediate outputs
+* Writer Agent generates the proposal draft
+* Updates the workflow status to **Pending Final Approval**
+
+---
+
+## Step 4 – Human Final Approval
+
+**Endpoint**
+
+```http
+POST /approve-final/{run_id}
+```
+
+The generated proposal draft is reviewed.
+
+If approved:
+
+* Workflow status changes to **Final Approved**
+* The quality refinement process begins
+
+---
+
+## Step 5 – Quality Improvement & Document Generation
+
+**Endpoint**
+
+```http
+POST /generate/{run_id}
+```
+
+The approved draft passes through the following pipeline:
+
+```text
+Reflection Agent
+        │
+        ▼
+Self Evaluation Agent
+        │
+        ▼
+Quality Score
+        │
+        ▼
+Score ≥ Threshold ?
+      │
+ ┌────┴─────┐
+ │          │
+Yes         No
+ │           │
+ ▼           ▼
+DOCX     Rewrite Agent
+Generator      │
+               ▼
+        Reflection Loop
+```
+
+The workflow stops when:
+
+* The configured quality threshold is reached, or
+* The maximum number of rewrite attempts is exceeded.
+
+---
+
+# API Endpoints
+
+| Method | Endpoint                  | Description                                |
+| ------ | ------------------------- | ------------------------------------------ |
+| GET    | `/`                       | Health Check                               |
+| POST   | `/plan`                   | Generate Task Graph                        |
+| POST   | `/approve/{run_id}`       | Approve generated execution plan           |
+| POST   | `/execute/{run_id}`       | Execute approved workflow                  |
+| POST   | `/approve-final/{run_id}` | Approve generated proposal draft           |
+| POST   | `/generate/{run_id}`      | Improve proposal quality and generate DOCX |
+
+---
+
+# Installation
+
+## Clone Repository
+
+```bash
+git clone https://github.com/payaltalmale/agentic-workflow-system.git
+
+cd agentic-workflow-system
+```
+
+## Create Virtual Environment
+
+### Windows
 
 ```bash
 python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+python3 -m venv venv
+
+source venv/bin/activate
+```
+
+## Install Dependencies
+
+```bash
 pip install -r requirements.txt
-cp .env.example .env               # then paste your ANTHROPIC_API_KEY
+```
+
+## Install Ollama
+
+Download Ollama from:
+
+https://ollama.com/download
+
+## Pull Llama 3.2
+
+```bash
+ollama pull llama3.2:3b
+```
+
+## Start Ollama
+
+```bash
+ollama run llama3.2:3b
+```
+
+## Start FastAPI
+
+```bash
 uvicorn main:app --reload --port 8000
 ```
 
-## Flow in practice
+Open Swagger UI:
 
-1. `POST /plan` — give it a goal string. Planner Agent returns a Task Graph (DAG) and the run is marked `pending_approval`. Nothing executes yet.
-2. You (human) call `POST /approve/{run_id}` once you're happy with the plan.
-3. `POST /execute/{run_id}` — orchestrator runs Research Agent, Tool Router, and Memory Agent per task node (respecting DAG dependencies), then the Writer Agent turns all that into a draft. Run moves to `pending_final_approval`.
-4. You call `POST /approve-final/{run_id}`.
-5. `POST /generate/{run_id}` — Reflection Agent critiques the draft, Self-Eval Agent scores it 0-100. If score ≤ 90, Rewrite Agent revises and it loops back through reflection (capped retries). Once score > 90, the DOCX Generator writes the final file.
+```text
+http://127.0.0.1:8000/docs
+```
 
-Every step — plan created, approvals, each agent call, each retry, final doc — is written to the audit log (`data/audit.log` and the `audit_log` SQLite table).
+---
 
-## Next steps I'd suggest building in this order
-1. Get `/plan` working end-to-end first (Planner Agent + Task Graph + SQLite persistence).
-2. Then `/execute` (orchestrator + the 3 parallel agents + Writer).
-3. Then `/generate` (reflection loop + docx).
+# Example Workflow
+
+```text
+User Goal
+     │
+     ▼
+Planner Agent
+     │
+     ▼
+Task Graph (DAG)
+     │
+     ▼
+Human Approval
+     │
+     ▼
+Workflow Orchestrator
+     │
+ ┌───┼───────────┐
+ ▼   ▼           ▼
+Research Tool  Memory
+     │
+     ▼
+Writer Agent
+     │
+     ▼
+Draft Proposal
+     │
+     ▼
+Human Final Approval
+     │
+     ▼
+Reflection Agent
+     │
+     ▼
+Self Evaluation Agent
+     │
+     ▼
+Quality Check
+     │
+ ┌───┴────┐
+ │        │
+Pass    Rewrite
+ │        │
+ ▼        ▼
+DOCX  Reflection Loop
+```
+
+---
+
+# Output
+
+The application generates:
+
+* Workflow execution history
+* SQLite memory database
+* Structured audit logs
+* Final Microsoft Word (.docx) proposal
+
+Example:
+
+```text
+data/
+├── memory.db
+├── audit.log
+└── generated_docs/
+    └── AI_Healthcare_Proposal_ab12cd.docx
+```
+
+---
+
+# Future Enhancements
+
+* Parallel task execution using `asyncio.gather()`
+* External API integrations
+* ChromaDB vector memory
+* Multi-model LLM support
+* Docker deployment
+* Authentication & Authorization
+* Real-time workflow monitoring dashboard
+
