@@ -1,0 +1,396 @@
+# 1. Start with the problem statement (30–45 seconds)
+
+> "The project is an Autonomous Agentic AI Workflow System that automatically creates business proposal documents from a user's high-level goal. Instead of sending one prompt to an LLM, I divided the work into multiple specialized AI agents. Each agent performs a specific responsibility such as planning, research, writing, reflection, and document generation. The entire workflow is orchestrated using FastAPI and SQLite."
+
+This immediately tells the interviewer:
+
+* It is an Agentic AI system.
+* It uses multiple agents.
+* It is not just a chatbot.
+
+---
+
+# 2. Explain the architecture
+
+Draw this on paper or a whiteboard if asked.
+
+```
+                 User
+                   │
+             FastAPI API
+                   │
+            Planner Agent
+                   │
+             Task Graph
+                   │
+          Workflow Orchestrator
+        ┌──────────┴──────────┐
+        │                     │
+ Research Agent         Tool Router
+        │
+        ▼
+   SQLite Memory
+        ▼
+   Reflection Agent
+        ▼
+    Rewrite Agent
+        ▼
+   Writer Agent
+        ▼
+  DOCX Generator
+```
+
+Then say:
+
+> "Every component has only one responsibility. This makes the workflow modular and easy to maintain."
+
+That sentence is something interviewers like to hear.
+
+---
+
+# 3. Explain every folder
+
+Instead of saying
+
+> "This folder contains Python files."
+
+Explain why it exists.
+
+### api/
+
+> "The API layer exposes REST endpoints. It receives HTTP requests and forwards them to the appropriate agents. It does not contain business logic."
+
+---
+
+### agents/
+
+> "Each agent has one responsibility. Instead of one huge prompt, I divided the problem into multiple AI agents."
+
+Then explain them one by one.
+
+---
+
+### BaseAgent
+
+> "Every AI agent inherits from BaseAgent. It centralizes communication with Ollama so I don't duplicate HTTP request logic across different agents."
+
+---
+
+### Planner Agent
+
+Input
+
+```
+Create business proposal
+```
+
+Output
+
+```
+Task 1
+
+Task 2
+
+Task 3
+```
+
+Explain:
+
+> "The planner converts a high-level goal into a task graph."
+
+---
+
+### Research Agent
+
+> "Each research node is executed independently. The research agent uses the local LLM to gather information required for that specific task."
+
+---
+
+### Memory Agent
+
+Now that you're using SQLite:
+
+> "The memory agent stores intermediate outputs from every completed task in SQLite. Later agents can retrieve previous results instead of repeating work."
+
+---
+
+### Reflection Agent
+
+This is one of the strongest parts.
+
+Say:
+
+> "Instead of accepting the first response, the Reflection Agent evaluates the generated draft and assigns a quality score."
+
+Example:
+
+```
+Score = 72
+```
+
+Then:
+
+```
+Rewrite
+```
+
+Again:
+
+```
+Score = 91
+```
+
+Stop.
+
+This shows iterative improvement.
+
+---
+
+### Writer Agent
+
+> "The writer combines all research outputs into one structured business proposal."
+
+---
+
+### Rewrite Agent
+
+> "If the quality score is below the configured threshold, the Rewrite Agent improves the proposal based on feedback from the Reflection Agent."
+
+---
+
+# 4. Explain the Orchestrator
+
+This is the most important engineering concept.
+
+Say:
+
+> "The planner only creates tasks. The Workflow Orchestrator decides the execution order."
+
+Example
+
+Planner
+
+```
+t1
+
+t2 depends on t1
+
+t3 depends on t2
+```
+
+The orchestrator executes
+
+```
+t1
+
+↓
+
+t2
+
+↓
+
+t3
+```
+
+If there are independent tasks
+
+```
+t1
+
+t2
+```
+
+they can later be executed in parallel.
+
+Interviewers like this explanation.
+
+---
+
+# 5. Explain SQLite
+
+Don't say
+
+> "SQLite stores data."
+
+Say:
+
+> "SQLite persists the workflow state so execution can survive server restarts."
+
+It stores
+
+```
+run_id
+
+goal
+
+status
+
+draft
+
+quality score
+
+node outputs
+```
+
+---
+
+# 6. Explain FastAPI
+
+Flow
+
+```
+POST /plan
+```
+
+↓
+
+Planner
+
+↓
+
+Task Graph
+
+↓
+
+Approve
+
+↓
+
+Execute
+
+↓
+
+Generate DOCX
+
+---
+
+Mention the endpoints:
+
+```
+POST /plan
+
+POST /approve
+
+POST /execute
+
+POST /approve-final
+```
+
+---
+
+# 7. Explain Ollama
+
+Say:
+
+> "I used Ollama to run the Llama 3.2 model locally. This keeps the project offline, reduces API costs, and makes testing easier."
+
+---
+
+# 8. Explain the workflow
+
+Suppose user enters
+
+```
+Create a proposal for implementing AI in customer support.
+```
+
+Planner
+
+↓
+
+```
+Research objectives
+
+Research AI tools
+
+Estimate costs
+
+Prepare proposal
+```
+
+Research Agent
+
+↓
+
+Each task
+
+↓
+
+Memory
+
+↓
+
+Writer
+
+↓
+
+Reflection
+
+↓
+
+Rewrite if needed
+
+↓
+
+Word Document
+
+---
+
+# 9. Explain why multiple agents
+
+Interviewer:
+
+> Why not use one prompt?
+
+Your answer:
+
+> "Large tasks are easier to manage when decomposed into smaller specialized tasks. Multiple agents improve modularity, allow independent improvements, and make the workflow easier to maintain and extend."
+
+That's a good software engineering answer.
+
+---
+
+# 10. Explain your design decisions
+
+Why SQLite?
+
+> "It's lightweight, serverless, and sufficient for persisting workflow state during development."
+
+Why FastAPI?
+
+> "FastAPI provides automatic request validation using Pydantic models and interactive API documentation through Swagger."
+
+Why Reflection?
+
+> "Reflection improves output quality by evaluating and refining the generated content instead of relying on a single LLM response."
+
+---
+
+# 11. Future improvements
+
+Always end with improvements.
+
+Example:
+
+> "Currently the workflow executes sequentially. In the future I would like to add parallel task execution, semantic memory using ChromaDB with explicit embeddings, external tool integrations such as web search, and a React frontend for monitoring workflow progress."
+
+---
+
+## What recruiters usually ask
+
+Prepare answers for these:
+
+* What is an AI agent?
+* What is the difference between a chatbot and an AI agent?
+* Why did you create multiple agents?
+* How does the Planner Agent work?
+* What is a Task Graph?
+* How does the Workflow Orchestrator schedule tasks?
+* How does the Reflection Agent improve quality?
+* Why SQLite instead of PostgreSQL?
+* Why FastAPI?
+* How does Ollama communicate with your application?
+* What happens if one agent fails?
+* How would you scale this project?
+* How would you execute independent tasks in parallel?
+

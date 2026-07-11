@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Conda
+.env
+.conda/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# SQLite database
+data/*.db
+
+# Generated documents
+data/generated_docs/
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.egg-info/
